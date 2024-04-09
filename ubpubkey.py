@@ -128,7 +128,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter, description=__doc__)
     parser.add_argument("infile", type=str, help="the input file")
     parser.add_argument("outfile", type=str, help="the output file",nargs='?')
-    parser.add_argument('--keynode', default=None, help = "Name of the public key node in the device tree. When used the output file should be an existing fdt with a signature node with 'algo' and 'required' properties")
+    parser.add_argument("--dtb_in", default=None, help="Use dtb_in as input dtb instead of outfile together with --keynode")
+    parser.add_argument('--keynode', default=None, help = "Name of the public key node in the existing dtb, either in --dtb_in or in outfile. The dtb should have a signature node with 'algo' and 'required' properties")
     parser.add_argument('--version', action='version', version="%s %s"%(NAME,VERSION))
     args = parser.parse_args()
 
@@ -192,7 +193,11 @@ if __name__ == "__main__":
             import fdt
             if not args.outfile:
                 sys.exit("The output file argument is missing")
-            with open(args.outfile, 'rb') as f:
+            if args.dtb_in:
+                dtb_file = args.dtb_in
+            else:
+                dtb_file = args.outfile
+            with open(dtb_file, 'rb') as f:
                 dtb = fdt.parse_dtb(f.read())
             keypath = f'/signature/{args.keynode}'
             dtb.set_property('rsa,exponent', [n_int(x.rsa_exponent, a) for a in reversed(range(64 // 32))], path=keypath)
