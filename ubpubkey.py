@@ -206,7 +206,8 @@ if __name__ == "__main__":
             with open(args.outfile, 'wb') as f:
                 f.write(dtb.to_dtb())
 
-        print("Done")
+        if args.outfile:
+            print("Done")
     except:
         eprint("Failed to generate a public key information")
         sys.exit(1)
