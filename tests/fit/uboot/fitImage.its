@@ -2,7 +2,7 @@
 / {
 	description ="fitImage for Foo";
 	images {
-		kernel@1 {
+		kernel {
 			description ="Linux kernel";
 			data = /incbin/("../kernel/zImage");
 			type ="kernel";
@@ -15,7 +15,7 @@
 				algo = "sha256";
 			};
 		};
-		fdt@1 {
+		fdt {
 			description ="DTB for Foo";
 			data = /incbin/("../kernel/kernel.dtb");
 			type ="flat_dt";
@@ -27,11 +27,11 @@
 		};
 	};
 	configurations {
-		default="conf@1";
-		conf@1{
-			kernel ="kernel@1";
-			fdt ="fdt@1";
-			signature@1 {
+		default="conf";
+		conf{
+			kernel ="kernel";
+			fdt ="fdt";
+			signature {
 				algo ="sha256,rsa4096";
 				key-name-hint ="uboot_sign_key";
 				sign-images = "fdt", "kernel";
