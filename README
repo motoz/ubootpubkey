@@ -109,4 +109,22 @@ Sign the FIT image
 
 mkimage -F -k keys/ -r out/fitImage
 
+====================
+Optionally you can use the --keynode argument to write the public key directly into a binary device tree without rebuilding it.
+Create an u-boot DTS uboot-dts/u-boot.dts with key entry like below:
+/dts-v1/;
+/ {
+	model ="Keys";
+	compatible ="vendor,board";
+	signature {
+		key-my_key {
+			required ="conf";
+			algo ="sha1,rsa4096";
+			key-name-hint ="uboot_sign_key";
+		};
+	};
+};
+
+After compiling u-boot.dtb you then add the public key like this:
+python ubpubkey.py keys/uboot_sign_key.crt u-boot.dtb --keynode=key-my_key
 

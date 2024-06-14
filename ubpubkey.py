@@ -16,6 +16,7 @@
 
 """
 A script to convert RSA public key to uboot dts format.
+Can optionally write directly to the flattened device tree.
 2020 Roman Kraievskyi <rkraevskiy@gmail.com>
 """
 
@@ -108,6 +109,8 @@ def get_uboot_properties(keydata):
     res["rsa,n0-inverse"] = uboot_hex(keydata.rsa_n0_inverse,32,4)
     return res
 
+def n_int(i, n):
+    return (i & 0xffffffff<<n*32) >> n*32
 
 if __name__ == "__main__":
     import time
@@ -119,13 +122,13 @@ if __name__ == "__main__":
     import os
     import argparse
 
-
     def eprint(*args,**kwargs):
         print(*args, file=sys.stderr, **kwargs)
 
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter, description=__doc__)
     parser.add_argument("infile", type=str, help="the input file")
     parser.add_argument("outfile", type=str, help="the output file",nargs='?')
+    parser.add_argument('--keynode', default=None, help = "Name of the public key node in the device tree. When used the output file should be an existing fdt with a signature node with 'algo' and 'required' properties")
     parser.add_argument('--version', action='version', version="%s %s"%(NAME,VERSION))
     args = parser.parse_args()
 
@@ -162,26 +165,47 @@ if __name__ == "__main__":
         der_data = key.exportKey('DER')
         x = UbootKeyData(key)
         props = get_uboot_properties(x)
-
-        if args.outfile:
-            ofname = args.outfile
-            try:
-                of = open(ofname,"w")
-            except:
-                eprint("Failed to open output file '%s'"%ofname);
-                sys.exit(1)
-        else:
-            of = sys.stdout
-
-        for k in sorted(props.keys()):
-            v = props[k]
-            print("%s = %s;"%(k,v), file=of)
-        print('k-gen = "%s/%s/%s";'%(NAME,VERSION,int(time.mktime(datetime.datetime.now().timetuple()))), file=of)
-
         h = hashlib.sha256()
         h.update(der_data)
-        print('k-sha256-fp = "%s";'%(h.hexdigest()[:64]), file=of)
-        print('k-src = "%s/%s";'%(src,ifsrc), file=of)
+        k_gen = "%s/%s/%s"%(NAME,VERSION,int(time.mktime(datetime.datetime.now().timetuple())))
+        k_sha256_fp = "%s"%(h.hexdigest()[:64])
+        k_src = "%s/%s"%(src,ifsrc)
+
+        if not args.keynode:
+            if args.outfile:
+                ofname = args.outfile
+                try:
+                    of = open(ofname,"w")
+                except:
+                    eprint("Failed to open output file '%s'"%ofname);
+                    sys.exit(1)
+            else:
+                of = sys.stdout
+
+            for k in sorted(props.keys()):
+                v = props[k]
+                print("%s = %s;"%(k,v), file=of)
+            print('k-gen = "%s";'%k_gen, file=of)
+            print('k-sha256-fp = "%s";'%k_sha256_fp, file=of)
+            print('k-src = "%s";'%k_src, file=of)
+        else:
+            import fdt
+            if not args.outfile:
+                sys.exit("The output file argument is missing")
+            with open(args.outfile, 'rb') as f:
+                dtb = fdt.parse_dtb(f.read())
+            keypath = f'/signature/{args.keynode}'
+            dtb.set_property('rsa,exponent', [n_int(x.rsa_exponent, a) for a in reversed(range(64 // 32))], path=keypath)
+            dtb.set_property('rsa,modulus', [n_int(x.rsa_modulus, a) for a in reversed(range((x.rsa_num_bits+31) // 32))], path=keypath)
+            dtb.set_property('rsa,n0-inverse', x.rsa_n0_inverse, path=keypath)
+            dtb.set_property('rsa,num-bits', x.rsa_num_bits, path=keypath)
+            dtb.set_property('rsa,r-squared', [n_int(x.rsa_r_squared, a) for a in reversed(range(((x.rsa_r_squared.bit_length()+31) // 32))], path=keypath)
+            dtb.set_property('k-gen ', k_gen, path=keypath)
+            dtb.set_property('k-sha256-fp', k_sha256_fp, path=keypath)
+            dtb.set_property('k-src', k_src, path=keypath)
+            with open(args.outfile, 'wb') as f:
+                f.write(dtb.to_dtb())
+
         print("Done")
     except:
         eprint("Failed to generate a public key information")
