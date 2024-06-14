@@ -1,14 +1,6 @@
 
-====================
-
-Ubpubkey was created to separate u-boot compilation from FIT image generation and signing. The following steps can be used with ubpubkey:
-1. keys generation
-2. u-boot compilation with embedded RSA public key
-3. FIT image generation
-4. FIT image signing
-
-This schema is more flexible: no need to have private keys for compilation and images generation. 
-
+This is forked from https://github.com/rkraevskiy/ubootpubkey.git to write the public key(s) directly to a binary device tree
+instead of being added to the device tree source.
 ====================
 Keys generation
 
@@ -18,113 +10,16 @@ openssl genrsa -out keys/uboot_sign_key.key 4096
 
 Generate public key from private key:
 
-openssl req -batch -new -x509 -key keys/uboot_sign_key.key -out keys/uboot_sign_key.crt
+openssl rsa -in keys/uboot_sign_key.key -pubout -out keys/uboot_sign_key.pem
 
 ====================
-U-boot compilation
+After compiling u-boot, add the signature node with the public key to the uboot control
+device tree u-boot.dtb
 
-create an u-boot DTS uboot-dts/u-boot.dts with key entry like below:
+ubpubkey.py --pubkey keys/uboot_sign_key.pem --keynode key-my_key --outfile u-boot.dtb
 
-/dts-v1/;
-/ {
-	model ="Keys";
-	compatible ="vendor,board";
-	signature {
-		key-my_key {
-			required ="conf";
-			algo ="sha1,rsa4096";
-			key-name-hint ="uboot_sign_key";
-#include "u-boot-pubkey.dtsi"
-		};
-	};
-};
+Several keys can be added like this:
 
+ubpubkey.py --pubkey keys/uboot_sign_key.pem keys2/uboot_sign_key.pem --keynode key-my_key key-my_key2 --outfile u-boot.dtb --set-any-key
 
-Generate an u-boot dts include file with public key information:
-
-ubpubkey.py keys/uboot_sign_key.crt uboot-dts/u-boot-pubkey.dtsi
-
-Generate an u-boot dts file with public key information:
-
-cpp -P -x assembler-with-cpp -Iuboot-dts -nostdinc -undef -D__DTS__ uboot-dts/u-boot.dts  -o out/u-boot.dts
-
-Use the out/u-boot.dts during an u-boot image generation.
-
-====================
-FIT image generation
-
-Create a file fitImage.its with content like below:
-
-
-/dts-v1/;
-/ {
-	description ="fitImage for Foo";
-	images {
-		kernel@1 {
-			description ="Linux kernel";
-			data = /incbin/("foo/zImage");
-			type ="kernel";
-			arch ="arm";
-			os ="linux";
-			compression ="none";
-			load = <0x10008000>;
-			entry = <0x10008000>;
-			hash-1 {
-				algo = "sha256";
-			};
-		};
-		fdt@1 {
-			description ="DTB for Foo";
-			data = /incbin/("foo/foo.dtb");
-			type ="flat_dt";
-			arch ="arm";
-			compression ="none";
-			hash-1 {
-				algo = "sha256";
-			};
-		};
-	};
-	configurations {
-		default="conf@1";
-		conf@1{
-			kernel ="kernel@1";
-			fdt ="fdt@1";
-			signature@1 {
-				algo ="sha256,rsa4096";
-				key-name-hint ="uboot_sign_key";
-				sign-images = "fdt", "kernel";
-			};
-		};
-	};
-};
-
-
-Generate a FIT image with (no signature inside):
-
-mkimage -f fitImage.its -r out/fitImage
-
-====================
-Sign the FIT image
-
-
-mkimage -F -k keys/ -r out/fitImage
-
-====================
-Optionally you can use the --keynode argument to write the public key directly into a binary device tree without rebuilding it.
-Create an u-boot DTS uboot-dts/u-boot.dts with key entry like below:
-/dts-v1/;
-/ {
-	model ="Keys";
-	compatible ="vendor,board";
-	signature {
-		key-my_key {
-			required ="conf";
-			algo ="sha1,rsa4096";
-			key-name-hint ="uboot_sign_key";
-		};
-	};
-};
-
-After compiling u-boot.dtb you then add the public key like this:
-python ubpubkey.py keys/uboot_sign_key.crt u-boot.dtb --keynode=key-my_key
 
