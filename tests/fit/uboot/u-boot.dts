@@ -5,7 +5,7 @@
 	signature {
 		key-my_key {
 			required ="conf";
-			algo ="sha1,rsa4096";
+			algo ="sha256,rsa4096";
 			key-name-hint ="uboot_sign_key";
 #include "u-boot-pubkey.dtsi"
 		};
